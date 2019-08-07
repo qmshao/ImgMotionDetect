@@ -1,9 +1,10 @@
 const NodeHelper = require("node_helper");
 const request = require("request");
 const pixelmatch = require('pixelmatch');
-const sharp = require('sharp');
 const PNG = require('pngjs').PNG;
 const jpeg = require('jpeg-js');
+const sharp = require('sharp');
+const Jimp = require('jimp');
 
 module.exports = NodeHelper.create({
 
@@ -28,33 +29,53 @@ module.exports = NodeHelper.create({
         this.config = config;
 
         let self = this;
-        request({url: self.config.url, encoding: null}, (err, resp, body) => {
-            sharp(body).resize({ width: self.config.width, height: self.config.height }).toBuffer()
-                .then(img => {
-                    let imgData = jpeg.decode(img);
-                    // put a cover
-                    let rgba = imgData.data;
-                    for (var i = 0; i < rgba.length; i += 4) {
-        
-                        let x = i / 4 % self.config.width;
-                        let y = Math.floor(i / 4 / self.config.width);
-                        if (x>self.config.width*self.config.mask[0]/100 &&                            
-                            x<=self.config.width*self.config.mask[1]/100 &&
-                            y>self.config.width*self.config.mask[2]/100 &&
-                            y<=self.config.width*self.config.mask[3]/100) {
-                            rgba[i] = 255;
-                            rgba[i+1] = 255;
-                            rgba[i+2] = 255;
-                        }
-                    }
-                    let {display, motionBox}  = self.processImg(imgData);
-                    this.sendSocketNotification('UPDATE_CAM_IMG',{imgData, display, motionBox });
+
+        if (!self.config.sharp) {
+            Jimp.read(self.config.url)
+                .then(raw => {
+                    raw.resize(self.config.width, self.config.height).getBuffer(Jimp.MIME_JPEG, (err, img) => {
+                        this.processImg(img);
+                    });
+
+                })
+                .catch(err => {
+                    console.log('insdie jimp');
+                    console.log(err);
                 });
-        });
+        } else {
+            request({ url: self.config.url, encoding: null }, (err, resp, body) => {
+                sharp(body).resize({ width: self.config.width, height: self.config.height }).toBuffer()
+                    .then(img => {
+                        this.processImg(img);
+                    });
+            });
+        }
     },
 
-    processImg(imgData) {
+    preprocessImg: function (img) {
+        let imgData = jpeg.decode(img);
+        // put a cover
+        let rgba = imgData.data;
+        for (var i = 0; i < rgba.length; i += 4) {
 
+            let x = i / 4 % this.config.width;
+            let y = Math.floor(i / 4 / this.config.width);
+            if (x > this.config.width * this.config.mask[0] / 100 &&
+                x <= this.config.width * this.config.mask[1] / 100 &&
+                y > this.config.width * this.config.mask[2] / 100 &&
+                y <= this.config.width * this.config.mask[3] / 100) {
+                rgba[i] = 255;
+                rgba[i + 1] = 255;
+                rgba[i + 2] = 255;
+            }
+        }
+        return imgData;
+    },
+
+
+    processImg: function (img) {
+
+        let imgData = this.preprocessImg(img);
         let diff, display, motionBox;
 
         if (this.prevImgData) {
@@ -63,9 +84,9 @@ module.exports = NodeHelper.create({
 
             diff = this.processDiff(diffData);
             motionBox = diff.motionBox;
-            
+
             if (!motionBox) {
-                if (this.hold>0) {
+                if (this.hold > 0) {
                     this.hold--;
                     motionBox = this.lastMotionBox;
                     display = true;
@@ -78,21 +99,11 @@ module.exports = NodeHelper.create({
             }
 
 
-            // if (motionBox) {
-            //     originContext.strokeStyle = '#f00';
-            //     originContext.strokeRect(
-            //         motionBox.x.min + 0.5,
-            //         motionBox.y.min + 0.5,
-            //         motionBox.x.max - motionBox.x.min,
-            //         motionBox.y.max - motionBox.y.min
-            //     );
-            // }
         }
 
         this.prevImgData = imgData;
         this.lastMotionBox = diff && diff.motionBox || this.lastMotionBox;
-
-        return { display, motionBox };
+        this.sendSocketNotification('UPDATE_CAM_IMG', { imgData, display, motionBox });
 
     },
 

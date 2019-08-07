@@ -6,9 +6,10 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "",
+  "author": "Quan Min Shao",
   "license": "ISC",
   "dependencies": {
+    "jimp": "^0.6.4",
     "jpeg-js": "^0.3.5",
     "pixelmatch": "^5.0.2",
     "pngjs": "^3.4.0",
