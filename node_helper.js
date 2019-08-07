@@ -3,7 +3,7 @@ const request = require("request");
 const pixelmatch = require('pixelmatch');
 const PNG = require('pngjs').PNG;
 const jpeg = require('jpeg-js');
-const sharp = require('sharp');
+// const sharp = require('sharp');
 const Jimp = require('jimp');
 
 module.exports = NodeHelper.create({
@@ -43,8 +43,11 @@ module.exports = NodeHelper.create({
                     console.log(err);
                 });
         } else {
+            if (!self.sharp){
+                self.sharp = require('sharp');
+            }
             request({ url: self.config.url, encoding: null }, (err, resp, body) => {
-                sharp(body).resize({ width: self.config.width, height: self.config.height }).toBuffer()
+                self.sharp(body).resize({ width: self.config.width, height: self.config.height }).toBuffer()
                     .then(img => {
                         this.processImg(img);
                     });
