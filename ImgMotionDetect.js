@@ -10,6 +10,7 @@ Module.register("ImgMotionDetect", {
 		refrTime: 2, //seconds
 		url: '',
 		mask:[0,0,0,0], //xmin, xmax, ymin, ymax
+		yoffset: 0,
 	},
 
 
@@ -25,6 +26,8 @@ Module.register("ImgMotionDetect", {
         this.canvas.width = this.config.width;
         this.canvas.height = this.config.height;
         this.ctx = this.canvas.getContext('2d'); 
+
+		this.canvas.style.transform = `translateY(${this.config.yoffset}%)`;
 
 
         var self = this;
