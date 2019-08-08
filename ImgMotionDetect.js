@@ -10,6 +10,7 @@ Module.register("ImgMotionDetect", {
 		refrTime: 2, //seconds
 		url: '',
 		mask:[0,0,0,0], //xmin, xmax, ymin, ymax
+		sharp: true,
 	},
 
 
@@ -32,10 +33,10 @@ Module.register("ImgMotionDetect", {
 		self.sendSocketNotification("UPDATE_CAM", self.config);
 		//self.updateDom();
 		// Schedule update timer.
-		setInterval(function() {
-			// self.updateDom();
-			self.sendSocketNotification("UPDATE_CAM", self.config);
-		}, self.config.refrTime*1000);
+		// setInterval(function() {
+		// 	// self.updateDom();
+		// 	self.sendSocketNotification("UPDATE_CAM", self.config);
+		// }, self.config.refrTime*1000);
 	},
 
 
