@@ -3,7 +3,7 @@ const request = require("request");
 const pixelmatch = require('pixelmatch');
 const PNG = require('pngjs').PNG;
 const jpeg = require('jpeg-js');
-// const sharp = require('sharp');
+const sharp = require('sharp');
 const Jimp = require('jimp');
 
 module.exports = NodeHelper.create({
@@ -17,8 +17,12 @@ module.exports = NodeHelper.create({
     socketNotificationReceived: function (notification, payload) {
 
         // payload is the config
+
         if (notification === "UPDATE_CAM") {
-            this.getImg(payload);
+            this.config = payload;
+            setInterval(() => {
+                this.getImg(this.config);
+            }, this.config.refrTime*1000);
         }
     },
 
@@ -26,33 +30,21 @@ module.exports = NodeHelper.create({
 
     getImg: function (config) {
 
-        this.config = config;
+        if (this.processing){
+            return;
+        }
+
+        this.processing = true;
 
         let self = this;
 
-        if (!self.config.sharp) {
-            Jimp.read(self.config.url)
-                .then(raw => {
-                    raw.resize(self.config.width, self.config.height).getBuffer(Jimp.MIME_JPEG, (err, img) => {
-                        this.processImg(img);
-                    });
-
-                })
-                .catch(err => {
-                    console.log('insdie jimp');
-                    console.log(err);
+        request({ url: self.config.url, encoding: null }, (err, resp, body) => {
+            sharp(body).resize({ width: self.config.width, height: self.config.height }).toBuffer()
+                .then(img => {
+                    this.processImg(img);
                 });
-        } else {
-            if (!self.sharp){
-                self.sharp = require('sharp');
-            }
-            request({ url: self.config.url, encoding: null }, (err, resp, body) => {
-                self.sharp(body).resize({ width: self.config.width, height: self.config.height }).toBuffer()
-                    .then(img => {
-                        this.processImg(img);
-                    });
-            });
-        }
+        });
+    
     },
 
     preprocessImg: function (img) {
@@ -107,6 +99,7 @@ module.exports = NodeHelper.create({
         this.prevImgData = imgData;
         this.lastMotionBox = diff && diff.motionBox || this.lastMotionBox;
         this.sendSocketNotification('UPDATE_CAM_IMG', { imgData, display, motionBox });
+        this.processing = false;
 
     },
 
