@@ -28,17 +28,22 @@ Module.register("ImgMotionDetect", {
         this.ctx = this.canvas.getContext('2d'); 
 
 		this.canvas.style.transform = `translateY(${this.config.yoffset}%)`;
+		this.recieved_diff = 0;
 
 
-        var self = this;
 		
-		self.sendSocketNotification("UPDATE_CAM", self.config);
+		this.sendSocketNotification("UPDATE_CAM", this.config);
 		//self.updateDom();
-		// Schedule update timer.
-		// setInterval(function() {
-		// 	// self.updateDom();
-		// 	self.sendSocketNotification("UPDATE_CAM", self.config);
-		// }, self.config.refrTime*1000);
+		//Schedule update timer.
+		setInterval(() => {
+			// self.updateDom();
+			this.sendSocketNotification("UPDATE_CAM", this.config);
+			this.recieved_diff ++;
+			if (this.recieved_diff == this.config.maxHold){
+				this.displayData = null;
+				this.updateDom();
+			}
+		}, this.config.refrTime*1000);
 	},
 
 
@@ -46,15 +51,14 @@ Module.register("ImgMotionDetect", {
 
 	// Override dom generator.
 	getDom: function() {
-		var self = this;
 		
 		if (this.displayData && this.displayData.display){
 			this.ctx.putImageData(new ImageData(new Uint8ClampedArray(this.displayData.imgData.data), this.config.width), 0, 0);
 
 			this.ctx.strokeStyle = '#f00';
 			this.ctx.strokeRect(
-				this.displayData.motionBox.x.min + 0.5,
-				this.displayData.motionBox.y.min + 0.5,
+				this.displayData.motionBox.x.min,
+				this.displayData.motionBox.y.min,
 				this.displayData.motionBox.x.max - this.displayData.motionBox.x.min,
 				this.displayData.motionBox.y.max - this.displayData.motionBox.y.min
 			);
@@ -75,6 +79,7 @@ Module.register("ImgMotionDetect", {
     socketNotificationReceived: function(notification, payload){
         if (notification === "UPDATE_CAM_IMG") {
 			this.displayData = payload;
+			this.recieved_diff = 0;
 			this.updateDom();
 		}
 	},
