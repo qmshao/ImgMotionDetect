@@ -18,6 +18,7 @@ module.exports = NodeHelper.create({
 
         this.expressApp.get("/screenswitch/:onoff", (req, res) => {
             this.screenOn = req.params.onoff.toUpperCase() === "ON";
+            if (!this.screenOn) this.prevImgData = null;
             res.send('Done');
         });
 
@@ -92,7 +93,7 @@ module.exports = NodeHelper.create({
     processImg: function (img) {
 
         let imgData = this.preprocessImg(img);
-        let  display, motionBox = undefined;
+        let  display =false, motionBox = undefined;
 
         if (this.prevImgData) {
             let score = pixelmatch(this.prevImgData.data, imgData.data, this.diffData.data, this.config.width, this.config.height, { threshold: 0.1, alpha: 0, includeAA: true, });
@@ -106,9 +107,7 @@ module.exports = NodeHelper.create({
                     this.hold--;
                     motionBox = this.lastMotionBox;
                     display = true;
-                } else {
-                    display = false;
-                }
+                } 
             } else {
                 this.hold = this.config.maxHold / this.config.refrTime;
                 display = true;
