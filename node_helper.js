@@ -18,6 +18,7 @@ module.exports = NodeHelper.create({
 
         this.expressApp.get("/screenswitch/:onoff", (req, res) => {
             this.screenOn = req.params.onoff.toUpperCase() === "ON";
+            res.send('Done');
         });
 
         this.screenOn = true;
