@@ -11,6 +11,16 @@ module.exports = NodeHelper.create({
 
         console.log("Starting node helper for: " + this.name);
 
+        this.expressApp.get("/showcam", (req, res) => {
+            this.hold = this.config.maxHold / this.config.refrTime;
+            res.send('Done');
+        });
+
+        this.expressApp.get("/screenswitch/:onoff", (req, res) => {
+            this.screenOn = req.params.onoff.toUpperCase() === "ON";
+        });
+
+        this.screenOn = true;
 
     },
 
@@ -19,12 +29,15 @@ module.exports = NodeHelper.create({
         // payload is the config
 
         if (notification === "UPDATE_CAM") {
+            if (!this.screenOn) return;
             this.config = payload;
             if (!this.diffData) {
                 this.diffData = new PNG({ width: this.config.width, height: this.config.height });
             }
             this.getImg(this.config);
-        }
+        } else if (notification === "SHOW_CAM") {
+            this.hold = this.config.maxHold / this.config.refrTime;
+        } 
     },
 
 
