@@ -4,6 +4,7 @@ const pixelmatch = require('pixelmatch');
 const PNG = require('pngjs').PNG;
 const jpeg = require('jpeg-js');
 const sharp = require('sharp');
+const { recFace } = require('./face/face.js');
 
 module.exports = NodeHelper.create({
 
@@ -18,12 +19,15 @@ module.exports = NodeHelper.create({
 
         this.expressApp.get("/screenswitch/:onoff", (req, res) => {
             this.screenOn = req.params.onoff.toUpperCase() === "ON";
-            if (!this.screenOn) this.prevImgData = null;
+            if (!this.screenOn) {
+                this.prevImgData = null;
+                this.nameSet = new Set();
+            }
             res.send('Done');
         });
 
         this.screenOn = true;
-
+        this.nameSet = new Set();
     },
 
     socketNotificationReceived: function (notification, payload) {
@@ -39,7 +43,7 @@ module.exports = NodeHelper.create({
             this.getImg(this.config);
         } else if (notification === "SHOW_CAM") {
             this.hold = this.config.maxHold / this.config.refrTime;
-        } 
+        }
     },
 
 
@@ -63,7 +67,22 @@ module.exports = NodeHelper.create({
 
             sharp(body).resize({ width: self.config.width, height: self.config.height }).toBuffer()
                 .then(img => {
-                    this.processImg(img);
+                    let display = this.processImg(img);
+                    if (display) {
+                        recFace(body, (nameSet) => {
+                            if (nameSet.size) {
+                                let newNameSet = new Set([...nameSet, ...this.nameSet]);
+                                if (this.nameSet.size != newNameSet.size){
+                                    this.nameSet = newNameSet;
+                                    let texts = Array.from(nameSet);
+                                    texts.push('I SEE YOU')
+                                    this.sendSocketNotification('FULLSCREEN_MSG', texts);
+                                }
+                            }
+                        });
+                    }
+
+
                 });
         });
 
@@ -93,12 +112,13 @@ module.exports = NodeHelper.create({
     processImg: function (img) {
 
         let imgData = this.preprocessImg(img);
-        let  display =false, motionBox = undefined;
+        let display = false, motionBox = undefined, motion = false;
 
         if (this.prevImgData) {
             let score = pixelmatch(this.prevImgData.data, imgData.data, this.diffData.data, this.config.width, this.config.height, { threshold: 0.1, alpha: 0, includeAA: true, });
 
-            if (score > this.config.scoreThreshold) {
+            motion = score > this.config.scoreThreshold;
+            if (motion) {
                 motionBox = this.processDiff(this.diffData);
             }
 
@@ -107,7 +127,7 @@ module.exports = NodeHelper.create({
                     this.hold--;
                     motionBox = this.lastMotionBox;
                     display = true;
-                } 
+                }
             } else {
                 this.hold = this.config.maxHold / this.config.refrTime;
                 display = true;
@@ -121,6 +141,8 @@ module.exports = NodeHelper.create({
 
         this.sendSocketNotification('UPDATE_CAM_IMG', { imgData: display ? imgData : null, display, motionBox });
         this.processing = false;
+
+        return display;
 
     },
 
@@ -141,7 +163,7 @@ module.exports = NodeHelper.create({
         //         }
         //     }
         // }
-        let step = 5, thres = ~~(step*step/2);
+        let step = 5, thres = ~~(step * step / 2);
         let height = this.config.height, width = this.config.width;
         for (let yy = 0; yy < height / step; yy++) {
             for (let xx = 0; xx < width / step; xx++) {
@@ -158,8 +180,8 @@ module.exports = NodeHelper.create({
                         }
                     }
                 }
-                if (cnt>thres){
-                    motionBox = this.calculateMotionBox(motionBox, xx*step, yy*step);
+                if (cnt > thres) {
+                    motionBox = this.calculateMotionBox(motionBox, xx * step, yy * step);
                 }
             }
         }
@@ -167,19 +189,19 @@ module.exports = NodeHelper.create({
         return motionBox;
     },
 
-        calculateMotionBox: function (currentMotionBox, x, y) {
-            // init motion box on demand
-            let motionBox = currentMotionBox || {
-                x: { min: x, max: x },
-                y: { min: y, max: y }
-            };
+    calculateMotionBox: function (currentMotionBox, x, y) {
+        // init motion box on demand
+        let motionBox = currentMotionBox || {
+            x: { min: x, max: x },
+            y: { min: y, max: y }
+        };
 
-            motionBox.x.min = Math.min(motionBox.x.min, x);
-            motionBox.x.max = Math.max(motionBox.x.max, x);
-            motionBox.y.min = Math.min(motionBox.y.min, y);
-            motionBox.y.max = Math.max(motionBox.y.max, y);
+        motionBox.x.min = Math.min(motionBox.x.min, x);
+        motionBox.x.max = Math.max(motionBox.x.max, x);
+        motionBox.y.min = Math.min(motionBox.y.min, y);
+        motionBox.y.max = Math.max(motionBox.y.max, y);
 
-            return motionBox;
-        },
+        return motionBox;
+    },
 
-    });
+});

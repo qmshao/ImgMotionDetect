@@ -7,7 +7,7 @@ Module.register("ImgMotionDetect", {
 		includeMotionBox: true,
 		scoreThreshold: 400,
 		maxHold: 5,  //seconds
-		refrTime: 2, //seconds
+		refrTime: 1, //seconds
 		url: '',
 		mask: [0, 0, 0, 0], //xmin, xmax, ymin, ymax
 		yoffset: 0,
@@ -86,6 +86,8 @@ Module.register("ImgMotionDetect", {
 			this.displayData = payload;
 			this.recieved_diff = 0;
 			this.updateDom();
+		} else if (notification === "FULLSCREEN_MSG"){
+			this.sendNotification(notification, payload);
 		}
 	},
 

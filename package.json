@@ -9,6 +9,9 @@
   "author": "Quan Min Shao",
   "license": "ISC",
   "dependencies": {
+    "@tensorflow/tfjs-node": "^1.2.7",
+    "canvas": "^2.5.0",
+    "face-api.js": "^0.20.1",
     "jpeg-js": "^0.3.5",
     "pixelmatch": "^5.0.2",
     "pngjs": "^3.4.0",
