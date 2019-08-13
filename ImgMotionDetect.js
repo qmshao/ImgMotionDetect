@@ -11,6 +11,12 @@ Module.register("ImgMotionDetect", {
 		url: '',
 		mask: [0, 0, 0, 0], //xmin, xmax, ymin, ymax
 		yoffset: 0,
+		faceOptions:{
+			tiny: false,
+			minConfidence: 0.5,
+			inputSize: 416,
+			scoreThreshold: 0.5,
+		}
 	},
 
 
@@ -31,9 +37,7 @@ Module.register("ImgMotionDetect", {
 		this.canvas.style.transform = `translateY(${this.config.yoffset}%)`;
 		this.recieved_diff = 0;
 
-
-
-		this.sendSocketNotification("UPDATE_CAM", this.config);
+		// this.sendSocketNotification("UPDATE_CAM", this.config);
 		//self.updateDom();
 		//Schedule update timer.
 		setInterval(() => {

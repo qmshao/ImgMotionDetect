@@ -11,29 +11,18 @@ const { Canvas, Image, ImageData } = canvas
 faceapi.env.monkeyPatch({ Canvas, Image, ImageData })
 
 
-const faceDetectionNet = faceapi.nets.ssdMobilenetv1;
-// const faceDetectionNet = faceapi.nets.tinyFaceDetector;
-// export const faceDetectionNet = mtcnn
+let faceDetectionNet;
+let options;
 
-// SsdMobilenetv1Options
-const minConfidence = 0.5;
-
-// TinyFaceDetectorOptions
-const inputSize = 320;
-const scoreThreshold = 0.5;
-
-let options = new faceapi.SsdMobilenetv1Options({ minConfidence });
-// let options = new faceapi.TinyFaceDetectorOptions({ inputSize, scoreThreshold })
 let INIT = 0;
 let fileIdx = 0;
 let unknownIdx = 0;
 let labels = {};
 let faceMatcher;
+let processing = false;
+let userOptions;
 
-fs.watch(__dirname + '/labels.json', (eventType, filename) => {
-  console.log(`labels.json changed: ${eventType} ${filename}`);
-  init();
-});
+
 
 
 function getFilePath(idx) {
@@ -56,14 +45,53 @@ function savePhoto(canvas) {
   fileIdx++;
 }
 
-async function init() {
+function createInit(userOptions){
+  return function(){
+    init(userOptions);
+  }
+}
+
+async function init(userOptions) {
+  
+  if (INIT == 0){
+    let initRT = createInit(userOptions);
+    fs.watch(__dirname + '/labels.json', (eventType, filename) => {
+      console.log(`labels.json changed: ${eventType} ${filename}`);
+      initRT();
+    });
+  } else if (INIT == 1){
+    return;
+  }
 
   INIT = 1;
+
+  if (!userOptions.tiny){
+    faceDetectionNet = faceapi.nets.ssdMobilenetv1;
+    // export const faceDetectionNet = mtcnn
+    
+    // SsdMobilenetv1Options
+    const minConfidence = userOptions.minConfidence;
+    options = new faceapi.SsdMobilenetv1Options({ minConfidence });
+    await faceapi.nets.faceLandmark68Net.loadFromDisk(__dirname + '/weights')
+    
+  } else {
+    faceDetectionNet = faceapi.nets.tinyFaceDetector;
+    
+    // TinyFaceDetectorOptions
+    const inputSize = userOptions.inputSize ;
+    const scoreThreshold = userOptions.scoreThreshold;
+    
+    options = new faceapi.TinyFaceDetectorOptions({ inputSize, scoreThreshold })
+    await faceapi.nets.faceLandmark68TinyNet.loadFromDisk(__dirname + '/weights')
+    await faceapi.nets.ssdMobilenetv1.loadFromDisk(__dirname + '/weights')
+
+  }
+
+
+
+
   await faceDetectionNet.loadFromDisk(__dirname + '/weights');
-  await faceapi.nets.faceLandmark68Net.loadFromDisk(__dirname + '/weights')
   await faceapi.nets.faceRecognitionNet.loadFromDisk(__dirname + '/weights')
-  // await faceapi.nets.faceLandmark68TinyNet.loadFromDisk(__dirname + '/weights')
-  // await faceapi.nets.ssdMobilenetv1.loadFromDisk(__dirname + '/weights')
 
 
 
@@ -78,7 +106,7 @@ async function init() {
         const queryImage = await canvas.loadImage(getFilePath(idx));
         const res = await faceapi
           .detectSingleFace(queryImage)
-          .withFaceLandmarks()
+          .withFaceLandmarks(userOptions.tiny)
           .withFaceDescriptor();
         descriptors.push(res.descriptor);
       } catch (e){
@@ -92,22 +120,26 @@ async function init() {
   }
 
   faceMatcher = new faceapi.FaceMatcher(labeledDescriptors);
-  console.log('face-api Ready!')
+  console.log(`face-api Ready using ${userOptions.tiny?'fast':'accurate'} net!`);
   INIT = 2;
 }
 
 
-async function recFace(buffer, cb) {
+async function recFace(buffer, userOptions, cb) {
+
+  if (processing) return;
+
+  processing = true;
   // INIT = 0: No init, 1: Initilizating, 2, Initialized
   if (!INIT) {
-    await init();
+    await init(userOptions);
   } else if (INIT == 1) {
     return;
   }
   const img = await canvas.loadImage(buffer);
   let detections = await faceapi
     .detectAllFaces(img, options)
-    .withFaceLandmarks()
+    .withFaceLandmarks(userOptions.tiny)
     .withFaceDescriptors();
 
   let found = new Set();
@@ -118,7 +150,7 @@ async function recFace(buffer, cb) {
 
     // console.log(faceMatcher);
     // console.log(faceMatcher.matchDescriptor(fd.descriptor));
-    if (bestMatch.label !== 'unknown') {
+    if (bestMatch.label.indexOf('unknown') != 0) {
       found.add(bestMatch.label);
     } else {
       let face = detect.detection;
@@ -171,9 +203,9 @@ async function recFace(buffer, cb) {
   //   }
   // }
   cb(found);
+  processing = false;
 
 }
 
-
-module.exports = { recFace };
+module.exports = { recFace , init};
 

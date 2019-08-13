@@ -4,7 +4,7 @@ const pixelmatch = require('pixelmatch');
 const PNG = require('pngjs').PNG;
 const jpeg = require('jpeg-js');
 const sharp = require('sharp');
-const { recFace } = require('./face/face.js');
+const face = require('./face/face.js');
 
 module.exports = NodeHelper.create({
 
@@ -36,7 +36,10 @@ module.exports = NodeHelper.create({
 
         if (notification === "UPDATE_CAM") {
             if (!this.screenOn) return;
-            this.config = payload;
+            if (!this.config){
+                this.config = payload;
+                face.init(this.config.faceOptions);
+            } 
             if (!this.diffData) {
                 this.diffData = new PNG({ width: this.config.width, height: this.config.height });
             }
@@ -69,13 +72,13 @@ module.exports = NodeHelper.create({
                 .then(img => {
                     let display = this.processImg(img);
                     if (display) {
-                        recFace(body, (nameSet) => {
+                        face.recFace(body, self.config.faceOptions, (nameSet) => {
                             if (nameSet.size) {
                                 let newNameSet = new Set([...nameSet, ...this.nameSet]);
                                 if (this.nameSet.size != newNameSet.size){
                                     this.nameSet = newNameSet;
                                     let texts = Array.from(nameSet);
-                                    texts.push('I SEE YOU')
+                                    texts.push('I SEE YOU');
                                     this.sendSocketNotification('FULLSCREEN_MSG', texts);
                                 }
                             }
