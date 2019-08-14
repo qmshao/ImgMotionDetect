@@ -20,7 +20,6 @@ let unknownIdx = 0;
 let labels = {};
 let faceMatcher;
 let processing = false;
-let userOptions;
 
 
 
@@ -88,8 +87,6 @@ async function init(userOptions) {
   }
 
 
-
-
   await faceDetectionNet.loadFromDisk(__dirname + '/weights');
   await faceapi.nets.faceRecognitionNet.loadFromDisk(__dirname + '/weights')
 
@@ -125,7 +122,7 @@ async function init(userOptions) {
 }
 
 
-async function recFace(buffer, userOptions, cb) {
+async function recFace(buffer, userOptions) {
 
   if (processing) return;
 
@@ -134,16 +131,16 @@ async function recFace(buffer, userOptions, cb) {
   if (!INIT) {
     await init(userOptions);
   } else if (INIT == 1) {
+    procssing = false;
     return;
   }
-  const img = await canvas.loadImage(buffer);
+  const img = await canvas.loadImage(Buffer.from(buffer.data));
   let detections = await faceapi
     .detectAllFaces(img, options)
     .withFaceLandmarks(userOptions.tiny)
     .withFaceDescriptors();
 
   let found = new Set();
-
 
   detections.forEach(async detect => {
     let bestMatch = faceMatcher.findBestMatch(detect.descriptor);
@@ -202,10 +199,18 @@ async function recFace(buffer, userOptions, cb) {
   //     }
   //   }
   // }
-  cb(found);
+  if (found.size)  process.send(Array.from(found));
   processing = false;
 
 }
+
+process.on('message', (m)=>{
+  if (m.msg === 'init'){
+    init(m.option);
+  } else if(m.msg === 'recFace'){
+    recFace(m.img, m.option);
+  }
+})
 
 module.exports = { recFace , init};
 

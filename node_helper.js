@@ -4,7 +4,8 @@ const pixelmatch = require('pixelmatch');
 const PNG = require('pngjs').PNG;
 const jpeg = require('jpeg-js');
 const sharp = require('sharp');
-const face = require('./face/face.js');
+// const face = require('./face/face.js');
+const { fork } = require('child_process');
 
 module.exports = NodeHelper.create({
 
@@ -20,7 +21,6 @@ module.exports = NodeHelper.create({
         this.expressApp.get("/screenswitch/:onoff", (req, res) => {
             this.screenOn = req.params.onoff.toUpperCase() === "ON";
             if (!this.screenOn) {
-                this.prevImgData = null;
                 this.nameSet = new Set();
             }
             res.send('Done');
@@ -28,6 +28,18 @@ module.exports = NodeHelper.create({
 
         this.screenOn = true;
         this.nameSet = new Set();
+
+        this.face = fork(__dirname+'/face/face.js');
+        this.face.on('message', (nameArr) => {
+            if (nameArr.length) {
+                let newNameSet = new Set([...nameArr, ...this.nameSet]);
+                if (this.nameSet.size != newNameSet.size){
+                    this.nameSet = newNameSet;
+                    nameArr.push('I SEE YOU');
+                    this.sendSocketNotification('FULLSCREEN_MSG', nameArr);
+                }
+            }
+        });
     },
 
     socketNotificationReceived: function (notification, payload) {
@@ -38,7 +50,7 @@ module.exports = NodeHelper.create({
             if (!this.screenOn) return;
             if (!this.config){
                 this.config = payload;
-                face.init(this.config.faceOptions);
+                this.face.send({msg:'init', option:this.config.faceOptions});
             } 
             if (!this.diffData) {
                 this.diffData = new PNG({ width: this.config.width, height: this.config.height });
@@ -72,17 +84,7 @@ module.exports = NodeHelper.create({
                 .then(img => {
                     let display = this.processImg(img);
                     if (display) {
-                        face.recFace(body, self.config.faceOptions, (nameSet) => {
-                            if (nameSet.size) {
-                                let newNameSet = new Set([...nameSet, ...this.nameSet]);
-                                if (this.nameSet.size != newNameSet.size){
-                                    this.nameSet = newNameSet;
-                                    let texts = Array.from(nameSet);
-                                    texts.push('I SEE YOU');
-                                    this.sendSocketNotification('FULLSCREEN_MSG', texts);
-                                }
-                            }
-                        });
+                        this.face.send({msg:'recFace', option:this.config.faceOptions, img: body});
                     }
 
 
